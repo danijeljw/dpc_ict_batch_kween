@@ -1,0 +1,165 @@
+##################################################################################
+#       Author:Prakash Yadav
+#    Reviewer: Vikas Sukhija
+#       Date: 12/20/2013
+#       Description: Schedule Event Failed script.
+##################################################################################
+
+#####Declare variables & add logging###################
+
+$email1 = “VikasSukhija@lab.com”
+$from = “don_not_reply@lab.com”
+$smtpserver =”smtp.lab.com”
+
+$action = “Shutdown” ###########value should be Restart or Shutdown##############
+
+$resserver=@()
+
+#################Define Logs#############
+$date1 = get-date -format d
+# replace \ by –
+$time = get-date -format t
+
+$date1 = $date1.ToString().Replace(“/”, “-“)
+
+$time = $time.ToString().Replace(“:”, “-“)
+$time = $time.ToString().Replace(” “, “”)
+
+$logs = “.\Logs” + “\” + “Powershell” + $date1 + “_” + $time + “_.txt”
+
+Start-Transcript -Path $logs
+
+#############################################
+
+##Add server that needs to be restarted or shutdown
+
+$server_list=get-content .\servers.txt
+if($server_list -eq $null)
+
+{
+write-host “List is empty – script will quit”
+exit
+
+}
+
+## Loop thru each server one by one
+
+if ($action -like “Restart”)
+
+{
+
+foreach ($i in $server_list)
+{
+
+restart-Computer $i -Force
+
+If(Test-Connection -ComputerName $i -Count 10 -Delay 5 -Quiet)
+{
+
+If(Test-Connection -ComputerName $i -count 2 -Delay 5 -Quiet)
+{
+
+$subject =”System $i is still responding – pls check”
+Write-host “system $i stuck” -ForegroundColor blue
+$message = new-object Net.Mail.MailMessage
+$smtp = new-object Net.Mail.SmtpClient($smtpserver)
+$message.From = $from
+$message.To.Add($email1)
+$message.subject = $subject
+$smtp.Send($message)
+$message.dispose()
+}
+else
+{
+$resserver += $i
+$subject =”System restart started for $i”
+Write-host “system $i restart process started” -ForegroundColor green
+$message = new-object Net.Mail.MailMessage
+$smtp = new-object Net.Mail.SmtpClient($smtpserver)
+$message.From = $from
+$message.To.Add($email1)
+$message.subject = $subject
+$smtp.Send($message)
+$message.dispose()
+}
+
+}
+}
+timeout 600
+write-host $resserver
+foreach ($i in $resserver)
+{
+write-host “process $i”
+If(Test-Connection -ComputerName $i -count 5 -Delay 5 -Quiet)
+
+{
+
+$subject =”System Restart for $i Successful”
+Write-host “System Restart for $i Successful” -ForegroundColor green
+$message = new-object Net.Mail.MailMessage
+$smtp = new-object Net.Mail.SmtpClient($smtpserver)
+$message.From = $from
+$message.To.Add($email1)
+$message.subject = $subject
+$smtp.Send($message)
+$message.dispose()
+}
+else
+{
+$subject =”System Restart for $i failed”
+Write-host “System Restart for $i failed” -ForegroundColor blue
+$message = new-object Net.Mail.MailMessage
+$smtp = new-object Net.Mail.SmtpClient($smtpserver)
+$message.From = $from
+$message.To.Add($email1)
+$message.subject = $subject
+$smtp.Send($message)
+$message.dispose()
+}
+}
+
+}
+
+if ($action -like “Shutdown”)
+{
+
+foreach ($i in $server_list)
+{
+
+Stop-Computer $i -Force
+
+If(Test-Connection -ComputerName $i -Count 10 -Delay 5 -Quiet)
+{
+
+If(Test-Connection -ComputerName $i -count 2 -Delay 5 -Quiet)
+{
+
+$subject =”System Shutdown for $i Restart Failed – please check”
+Write-host “System Shutdown for $i Restart Failed – please check” -ForegroundColor blue
+$message = new-object Net.Mail.MailMessage
+$smtp = new-object Net.Mail.SmtpClient($smtpserver)
+$message.From = $from
+$message.To.Add($email1)
+$message.subject = $subject
+$smtp.Send($message)
+$message.dispose()
+}
+else
+{
+
+$subject =”System has been Shutdown for $i”
+Write-host “System has been Shutdown for $i” -ForegroundColor green
+$message = new-object Net.Mail.MailMessage
+$smtp = new-object Net.Mail.SmtpClient($smtpserver)
+$message.From = $from
+$message.To.Add($email1)
+$message.subject = $subject
+$smtp.Send($message)
+$message.dispose()
+}
+
+}
+}
+}
+
+Stop-Transcript
